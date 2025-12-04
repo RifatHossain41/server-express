@@ -1,12 +1,12 @@
 import express, { Request, Response } from "express";
-import {Pool} from "pg";
+import { Pool } from "pg";
 import dotenv from "dotenv";
 import path from "path";
 
-dotenv.config({path: path.join(process.cwd(), ".env")})
+dotenv.config({ path: path.join(process.cwd(), ".env") });
 
-const app = express()
-const port = 5000
+const app = express();
+const port = 5000;
 
 // parser
 app.use(express.json());
@@ -16,13 +16,6 @@ app.use(express.json());
 const pool = new Pool({
   connectionString: `${process.env.CONNECTION_STR}`,
 });
-
-// const pool = new Pool({
-//   connectionString: process.env.CONNECTION_STR,
-//   ssl: {
-//     rejectUnauthorized: false,
-//   },
-// });
 
 const initDB = async () => {
   await pool.query(`
@@ -38,7 +31,7 @@ const initDB = async () => {
     )
     `);
 
-    await pool.query(`
+  await pool.query(`
       CREATE TABLE IF NOT EXISTS todos(
       id SERIAL PRIMARY KEY,
       user_id INT REFERENCES users(id) ON DELETE CASCADE,
@@ -54,23 +47,127 @@ const initDB = async () => {
 
 initDB();
 
+app.get("/", (req: Request, res: Response) => {
+  res.send("Hello Next Level Developer");
+});
 
+// single user
+app.get("/users/:id", async (req: Request, res: Response) => {
 
+  try {
+    const result = await pool.query(`SELECT * FROM users WHERE id = $1`, [req.params.id])
 
-
-app.get('/', (req: Request, res: Response) => {
-  res.send('Hello Next Level Developer')
-})
-
-app.post("/", (req: Request, res: Response) => {
-    console.log(req.body)
-
-    res.status(201).json({
-        success: true,
-        messege: "API is working"
+    if(result.rows.length === 0){
+       res.status(404).json({
+      success: false,
+      message: "User not found!!"
+    });
+    } else{
+       res.status(200).json({
+      success: true,
+      message: "User fetcehed succesfully",
+      data: result.rows[0]
     })
+    }
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    })
+  }
 })
+
+// users route
+app.post("/users", async (req: Request, res: Response) => {
+  const { name, email, age, phone, address  } = req.body;
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO users(name, email, age, phone, address) VALUES($1, $2, $3, $4, $5) RETURNING *`,
+      [name, email, age, phone, address]
+    );
+    
+res.status(500).json({
+      success: true,
+      messege: "Data Instered Successfully",
+      data: result.rows[0]
+    });
+  } catch (error: any) {
+  }
+});
+
+// users
+app.get("/users", async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`SELECT * FROM users`);
+    res.status(200).json({
+      success: true,
+      message: "Users retrived successfully",
+      data: result.rows
+    })
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+      details: error
+    })
+  }
+})
+
+// update
+app.put("/users/:id", async (req: Request, res: Response) => {
+  const {name, email, age, phone, address} = req.body;
+  try {
+    const result = await pool.query(`UPDATE users SET name=$1, email=$2, age=$3, phone=$4, address=$5 WHERE id=$6 RETURNING *`, [name, email, age, phone, address, req.params.id])
+
+    if(result.rows.length === 0){
+       res.status(404).json({
+      success: false,
+      message: "User not found!!"
+    });
+    } else{
+       res.status(200).json({
+      success: true,
+      message: "User updated succesfully",
+      data: result.rows[0]
+    })
+    }
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    })
+  }
+})
+
+// delete
+app.delete("/users/:id", async (req: Request, res: Response) => {
+
+  try {
+    const result = await pool.query(`DELETE FROM users WHERE id = $1`, [req.params.id])
+
+    if(result.rowCount === 0){
+       res.status(404).json({
+      success: false,
+      message: "User not found!!"
+    });
+    } else{
+       res.status(200).json({
+      success: true,
+      message: "User deleted succesfully",
+      data: result.rows
+    })
+    }
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    })
+  }
+})
+
+
 
 app.listen(port, () => {
-  console.log(`Example app listening on port ${port}`)
-})
+  console.log(`Example app listening on port ${port}`);
+});
